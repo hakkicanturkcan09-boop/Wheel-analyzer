@@ -21,18 +21,29 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Android SDK hazırla
-        uses: android-actions/setup-android@v3
+      - name: Android SDK yolunu bul
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | sort -V | tail -n 1)
+          fi
+          echo "SDKMANAGER=$SDKMANAGER" >> $GITHUB_ENV
 
       - name: SDK lisanslarını kabul et
-        run: yes | sdkmanager --licenses
+        run: |
+          yes | "$SDKMANAGER" --licenses || true
+          "$SDKMANAGER" --licenses
 
       - name: Android paketlerini yükle
         run: |
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          "$SDKMANAGER" --install \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
 
       - name: Gradle kur
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/gradle-build-action@v3
         with:
           gradle-version: '8.9'
 
