@@ -55,7 +55,7 @@ class ResultSequenceAnalyzer(
         }
 
         val newest = current.slots[0]
-        if (recorded.isEmpty() || recorded.last() != newest.symbol) recorded.add(newest.symbol)
+        recorded.add(newest.symbol)
         previous = current
         return UpdateResult(
             UpdateStatus.NEW_RESULT,
