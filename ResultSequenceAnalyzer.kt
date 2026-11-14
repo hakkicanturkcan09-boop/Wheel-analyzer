@@ -6,7 +6,15 @@ package com.wheelanalyzer.app
  * This class deliberately refuses to record uncertain or ambiguous shifts.
  */
 enum class FoodSymbol {
-    APPLE, GREENS, ORANGE, FISH, WATERMELON, CHICKEN, SHRIMP, BURGER, TURKEY, UNKNOWN
+    WATERMELON,
+    ORANGE,
+    APPLE,
+    LETTUCE,
+    FISH,
+    HAMBURGER,
+    SHRIMP,
+    CHICKEN,
+    UNKNOWN
 }
 
 data class RecognizedSlot(val symbol: FoodSymbol, val confidence: Float)
