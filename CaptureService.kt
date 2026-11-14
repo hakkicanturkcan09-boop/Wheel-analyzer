@@ -36,6 +36,7 @@ class CaptureService : Service() {
     private var imageHandler: Handler? = null
 
     private var lastFrameTime = 0L
+    private lateinit var sampleCollector: SlotSampleCollector
 
     private val projectionCallback =
         object : MediaProjection.Callback() {
