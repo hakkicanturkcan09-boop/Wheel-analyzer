@@ -1,0 +1,125 @@
+package com.wheelanalyzer.app
+
+import android.content.Context
+import android.graphics.Bitmap
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+class SlotSampleCollector(context: Context) {
+
+    private val sampleDirectory =
+        File(context.filesDir, "wheel_samples")
+
+    private val preferences =
+        context.getSharedPreferences(
+            "wheel_sample_collector",
+            Context.MODE_PRIVATE
+        )
+
+    private val maxSamples = 500
+
+    init {
+        sampleDirectory.mkdirs()
+    }
+
+    @Synchronized
+    fun collect(bitmap: Bitmap): Boolean {
+
+        if (bitmap.isRecycled ||
+            bitmap.width < 10 ||
+            bitmap.height < 10
+        ) return false
+
+        val signature = createSignature(bitmap)
+
+        val known = preferences.getStringSet(
+            "known_samples",
+            emptySet()
+        )?.toMutableSet() ?: mutableSetOf()
+
+        // Aynı görüntüyü tekrar kaydetme.
+        if (signature in known) return false
+
+        // Depolama sınırını koru.
+        if ((sampleDirectory.listFiles()?.size ?: 0) >= maxSamples) {
+            return false
+        }
+
+        val time = SimpleDateFormat(
+            "yyyyMMdd_HHmmss_SSS",
+            Locale.US
+        ).format(Date())
+
+        val file = File(
+            sampleDirectory,
+            "sample_${time}.jpg"
+        )
+
+        return try {
+            file.outputStream().use { output ->
+                bitmap.compress(
+                    Bitmap.CompressFormat.JPEG,
+                    95,
+                    output
+                )
+            }
+
+            known.add(signature)
+
+            preferences.edit()
+                .putStringSet("known_samples", known)
+                .apply()
+
+            true
+
+        } catch (e: Exception) {
+            file.delete()
+            false
+        }
+    }
+
+    private fun createSignature(bitmap: Bitmap): String {
+
+        val small = Bitmap.createScaledBitmap(
+            bitmap,
+            8,
+            8,
+            true
+        )
+
+        val signature = StringBuilder()
+
+        try {
+            for (y in 0 until 8) {
+                for (x in 0 until 8) {
+
+                    val pixel = small.getPixel(x, y)
+
+                    val red = (pixel shr 16) and 0xFF
+                    val green = (pixel shr 8) and 0xFF
+                    val blue = pixel and 0xFF
+
+                    signature.append(
+                        "%02x%02x%02x".format(
+                            Locale.US,
+                            red / 16,
+                            green / 16,
+                            blue / 16
+                        )
+                    )
+                }
+            }
+        } finally {
+            small.recycle()
+        }
+
+        return signature.toString()
+    }
+
+    fun sampleCount(): Int {
+        return sampleDirectory.listFiles()
+            ?.count { it.extension == "jpg" } ?: 0
+    }
+}
