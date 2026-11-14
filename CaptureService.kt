@@ -215,6 +215,7 @@ class CaptureService : Service() {
                     )
 
                     try {
+                        sampleCollector.collect(slotBitmap)
                         Log.d(
                             "WheelAnalyzer",
                             "Slot $i görüntüsü alındı: " +
