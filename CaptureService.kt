@@ -92,6 +92,7 @@ class CaptureService : Service() {
         )
 
         startImageThread()
+        sampleCollector = SlotSampleCollector()
         startCapture()
         showOverlay()
 
