@@ -13,6 +13,8 @@ import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
+import android.os.Handler
+import android.os.HandlerThread
 import android.os.IBinder
 import android.view.Gravity
 import android.view.WindowManager
@@ -25,6 +27,12 @@ class CaptureService : Service() {
     private var reader: ImageReader? = null
     private var overlay: TextView? = null
     private var windowManager: WindowManager? = null
+
+    private var captureThread: HandlerThread? = null
+    private var captureHandler: Handler? = null
+    private val mainHandler = Handler(android.os.Looper.getMainLooper())
+
+    private var frameCount = 0
 
     private val projectionCallback =
         object : MediaProjection.Callback() {
@@ -77,10 +85,16 @@ class CaptureService : Service() {
 
             projection?.registerCallback(
                 projectionCallback,
-                null
+                mainHandler
             )
 
             val metrics = resources.displayMetrics
+
+            captureThread = HandlerThread("WheelCaptureThread").apply {
+                start()
+            }
+
+            captureHandler = Handler(captureThread!!.looper)
 
             reader = ImageReader.newInstance(
                 metrics.widthPixels,
@@ -88,6 +102,24 @@ class CaptureService : Service() {
                 PixelFormat.RGBA_8888,
                 2
             )
+
+            reader?.setOnImageAvailableListener({ imageReader ->
+                val image = imageReader.acquireLatestImage()
+
+                if (image != null) {
+                    try {
+                        frameCount++
+
+                        if (frameCount == 1 || frameCount % 15 == 0) {
+                            mainHandler.post {
+                                updateOverlay()
+                            }
+                        }
+                    } finally {
+                        image.close()
+                    }
+                }
+            }, captureHandler)
 
             display = projection?.createVirtualDisplay(
                 "WheelAnalyzerCapture",
@@ -97,10 +129,11 @@ class CaptureService : Service() {
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                 reader?.surface,
                 null,
-                null
+                captureHandler
             )
 
             showOverlay()
+
             START_NOT_STICKY
 
         } catch (e: Exception) {
@@ -114,11 +147,11 @@ class CaptureService : Service() {
             getSystemService(WINDOW_SERVICE) as WindowManager
 
         val view = TextView(this).apply {
-            text = "WHEEL ANALYZER\nEkran takibi açık\nSimge tanıma hazırlanıyor"
-            textSize = 12f
+            text = "WHEEL ANALYZER\nGörüntü bekleniyor..."
+            textSize = 13f
             setTextColor(0xFFFFFFFF.toInt())
-            setPadding(22, 16, 22, 16)
-            setBackgroundColor(0xDD111827.toInt())
+            setPadding(20, 16, 20, 16)
+            setBackgroundColor(0xEE111827.toInt())
         }
 
         val type =
@@ -143,6 +176,16 @@ class CaptureService : Service() {
 
         windowManager?.addView(view, params)
         overlay = view
+
+        updateOverlay()
+    }
+
+    private fun updateOverlay() {
+        overlay?.text =
+            "WHEEL ANALYZER\n" +
+            "Ekran yakalama: AKTİF\n" +
+            "Alınan görüntü: $frameCount\n" +
+            "Sembol tanıma: Hazırlanıyor"
     }
 
     private fun createNotificationChannel() {
@@ -176,6 +219,8 @@ class CaptureService : Service() {
     }
 
     override fun onDestroy() {
+        reader?.setOnImageAvailableListener(null, null)
+
         overlay?.let {
             windowManager?.removeView(it)
         }
@@ -190,6 +235,12 @@ class CaptureService : Service() {
         projection?.unregisterCallback(projectionCallback)
         projection?.stop()
         projection = null
+
+        captureThread?.quitSafely()
+        captureThread = null
+        captureHandler = null
+
+        mainHandler.removeCallbacksAndMessages(null)
 
         super.onDestroy()
     }
